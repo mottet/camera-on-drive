@@ -102,3 +102,9 @@ dist
 
 # TernJS port file
 .tern-port
+
+bosch-token*
+bosch-credentials*
+google-token*
+google-credentials*
+*.mp4

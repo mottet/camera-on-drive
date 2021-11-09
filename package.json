@@ -1,0 +1,23 @@
+{
+  "name": "cameraondrive",
+  "version": "1.0.0",
+  "description": "Recording of Bosch Smart Camera event clips in Google Drive",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "ts-node ./src/index.ts"
+  },
+  "author": "Marvin Mottet",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^16.11.6",
+    "ts-node": "^10.4.0",
+    "typescript": "^4.4.4"
+  },
+  "dependencies": {
+    "axios": "^0.24.0",
+    "googleapis": "39",
+    "puppeteer": "^10.4.0",
+    "querystring": "^0.2.1",
+    "rxjs": "^7.4.0"
+  }
+}
