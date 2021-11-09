@@ -4,7 +4,8 @@
   "description": "Recording of Bosch Smart Camera event clips in Google Drive",
   "main": "src/index.ts",
   "scripts": {
-    "start": "ts-node ./src/index.ts"
+    "start": "ts-node ./src/index.ts",
+    "build": "tsc"
   },
   "author": "Marvin Mottet",
   "license": "ISC",
