@@ -207,7 +207,7 @@ export class BoachConnection {
 
   private async getBoschOAuthToken(info: IOAuth2ConnectionPageInfo): Promise<OAuth2Tokens | undefined> {
     const credentials = await this.getBoschIdCredentials();
-    const browser = await puppeteer.launch();
+    const browser = await puppeteer.launch({args: ['--no-sandbox', '--disable-setuid-sandbox']});
     const page = await browser.newPage();
     console.info('Open Bosch connect page');
     await page.goto(info.requestConnectionUrl, {
