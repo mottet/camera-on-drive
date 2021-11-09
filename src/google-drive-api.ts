@@ -26,19 +26,23 @@ export class GoogleDriveApi {
   /**
    * Lists the names of all files.
    */
-  public async listAllFilesName() {
+  public async listAllFilesName(): Promise<string[]> {
     const drive = google.drive({ version: 'v3', auth: this.auth });
     try {
-      const res = await drive.files.list({
-        fields: 'files(name)'
-      });
-      const files = res.data.files;
-      if (files?.length) {
-        return files.filter(file => file.name).map(file => file.name) as string[];
-      } else {
-        console.log('No files found.');
-        return [] as string[];
+      let atTheEndOfTheList = false
+      let nextPageToken: string | undefined;
+      const filesName: string[] = [];
+      while (!atTheEndOfTheList) {
+        const res = await drive.files.list({
+          fields: 'files(name),nextPageToken',
+          pageSize: 1000,
+          pageToken: nextPageToken
+        });
+        res.data.files?.filter(file => file.name).forEach(file => filesName.push(file.name as string));
+        nextPageToken = res.data.nextPageToken;
+        atTheEndOfTheList = !nextPageToken;
       }
+      return filesName;
     } catch (err) {
       console.error('The API returned an error: ' + err);
       throw err;
