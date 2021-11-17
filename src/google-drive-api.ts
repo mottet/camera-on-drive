@@ -5,7 +5,6 @@ import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { BehaviorSubject, filter, first, firstValueFrom } from 'rxjs';
 
-
 export class GoogleDriveApi {
   // If modifying these scopes, delete google-token.json.
   private SCOPES = ['https://www.googleapis.com/auth/drive'];
@@ -132,8 +131,7 @@ export class GoogleDriveApi {
    */
   private async authorize(credentials: any) {
     const { client_secret, client_id, redirect_uris } = credentials.installed;
-    this.auth = new google.auth.OAuth2(
-      client_id, client_secret, redirect_uris[0]);
+    this.auth = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
 
     // Check if we have previously stored a token.
     try {
@@ -144,6 +142,7 @@ export class GoogleDriveApi {
       return this.getAccessToken();
     };
   }
+
   /**
    * Get and store new token after prompting for user authorization.
    */

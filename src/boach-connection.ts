@@ -60,7 +60,8 @@ class OAuth2Tokens implements IOAuth2Tokens {
     this.refresh_token = tokens.refresh_token;
     this.token_type = tokens.token_type;
     this.expires_in = tokens.expires_in;
-    this.expires_at = Date.now() + (this.expires_in * 1000);
+    // one minute before real expiration
+    this.expires_at = Date.now() + (this.expires_in * 1000) - 60_000;
   }
 
   public isValide(): boolean {

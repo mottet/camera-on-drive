@@ -21,16 +21,7 @@ export class CameraOnDrive {
     console.info('Fetching list of all videos\' name on the drive');
     const videosOnDrive = new Set(await this.googleApi.listAllFilesName());
     console.info('Fetching all the events of the camera');
-    const events = await this.boschApi.getEvents();
-    const eventsWithClipNotYetOnDrive = events
-      .filter(e => e.eventType === EventType.MOVEMENT)
-      .filter(e => [
-        EventVideoClipUploadStatus.Local,
-        EventVideoClipUploadStatus.Pending,
-        EventVideoClipUploadStatus.Done
-      ].includes(e.videoClipUploadStatus))
-      .filter(e => !videosOnDrive.has(`${e.timestamp}.mp4`))
-      .sort(eventsByDescTimestamp);
+    const eventsWithClipNotYetOnDrive = await this.getEventsWithClipNotYetOnDrive(videosOnDrive);
     if (eventsWithClipNotYetOnDrive.length) {
       this.copyMissingClipOnDrive(eventsWithClipNotYetOnDrive, videosOnDrive);
     } else {
@@ -38,6 +29,20 @@ export class CameraOnDrive {
       console.info('Waiting 60 secondes before checking again');
       setTimeout(() => this.mainLoop(), 60_000);
     }
+  }
+
+  private async getEventsWithClipNotYetOnDrive(videosOnDrive: Set<string>) {
+    const events = await this.boschApi.getEvents();
+    const eventsWithClipNotYetOnDrive = events
+      .filter(e => e.eventType === EventType.MOVEMENT || e.eventType === EventType.AUDIO_ALARM)
+      .filter(e => [
+        EventVideoClipUploadStatus.Local,
+        EventVideoClipUploadStatus.Pending,
+        EventVideoClipUploadStatus.Done
+      ].includes(e.videoClipUploadStatus))
+      .filter(e => !videosOnDrive.has(`${e.timestamp}.mp4`))
+      .sort(eventsByDescTimestamp);
+    return eventsWithClipNotYetOnDrive;
   }
 
   private async copyMissingClipOnDrive(eventsWithClipNotYetOnDrive: CameraEvent[], videosOnDrive: Set<string>) {
@@ -91,6 +96,8 @@ export class CameraOnDrive {
   private async isEnoughSpaceInDriveForFile(filePath: string): Promise<boolean> {
     const stats = statSync(filePath);
     const availableSpace = await this.googleApi.getAvailableSpace();
+    console.log(`file size ${availableSpace}`);
+    console.log(`availableSpace ${availableSpace}`);
     return availableSpace >= stats.size;
   }
 
@@ -103,4 +110,3 @@ export class CameraOnDrive {
     }
   }
 }
-
