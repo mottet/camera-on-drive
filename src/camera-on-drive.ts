@@ -96,7 +96,7 @@ export class CameraOnDrive {
   private async isEnoughSpaceInDriveForFile(filePath: string): Promise<boolean> {
     const stats = statSync(filePath);
     const availableSpace = await this.googleApi.getAvailableSpace();
-    console.log(`file size ${availableSpace}`);
+    console.log(`file size ${stats.size}`);
     console.log(`availableSpace ${availableSpace}`);
     return availableSpace >= stats.size;
   }
