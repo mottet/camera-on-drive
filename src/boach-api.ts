@@ -87,13 +87,12 @@ export default class BoachApi {
     }
   }
 
-  public async isEventDoneDownloading(eventId: string) {
+  public async getEventStatus(eventId: string): Promise<EventVideoClipUploadStatus | undefined> {
     const requestEvent = await this.getEvent(eventId);
-    console.info(`Current status: [${requestEvent?.videoClipUploadStatus}]`);
-    return requestEvent?.videoClipUploadStatus === EventVideoClipUploadStatus.Done;
+    return requestEvent?.videoClipUploadStatus;
   }
 
-  public async downloadVideo(videoId: string, downloadFolder: string): Promise<void> {
+  public async downloadVideo(videoId: string, downloadFolder: string): Promise<boolean> {
     const videoUrl = `${this.baseUrl}/events/${videoId}/clip.mp4`;
     const localFilePath = path.resolve(downloadFolder, `${videoId}.mp4`);
     try {
@@ -102,11 +101,12 @@ export default class BoachApi {
       return new Promise(resolve => 
         w.on('finish', () => {
           console.log('Successfully downloaded file!');
-          resolve();
+          resolve(true);
         })
       );
     } catch (error) {
       console.error(error);
+      return false;
     }
   }
 
@@ -131,6 +131,10 @@ export default class BoachApi {
       throw error;
     }
   }
+}
+
+export function eventsByAscTimestamp(a: CameraEvent, b: CameraEvent): number {
+  return Date.parse(b.timestamp.split('[')[0]) - Date.parse(a.timestamp.split('[')[0]);
 }
 
 export function eventsByDescTimestamp(a: CameraEvent, b: CameraEvent): number {
