@@ -52,23 +52,33 @@ export class CameraOnDrive {
     console.info(`There are ${eventsWithClipNotYetOnDrive.length} clip to download`);
     const uploadingToBosch: IEventPromiseStatus = {};
     const clipNeededToBeUploadToBoschEvents: CameraEvent[] = [];
-    const uploadingToDrive: Promise<boolean>[] = [];
+    const clipReadyToBeUploadToDrive: CameraEvent[] = [];
     for (let event of eventsWithClipNotYetOnDrive) {
-      console.info(`==========`);
-      console.info(`Dealing with event id ${event.id}`);
       if (event.videoClipUploadStatus === EventVideoClipUploadStatus.Local || event.videoClipUploadStatus === EventVideoClipUploadStatus.Pending) {
         uploadingToBosch[event.id] = 'Pending';
         clipNeededToBeUploadToBoschEvents.push(event);
       } else if (event.videoClipUploadStatus === EventVideoClipUploadStatus.Done) {
-        uploadingToDrive.push(
-          this.downloadingLocallyClipFromBosch(event.id)
-            .then(() => this.uploadingLocalClipToDrive(event, videosOnDrive))
-        );
+        clipReadyToBeUploadToDrive.push(event);
       }
     }
+    const uploadingToDrive = this.uploadingAllReadyClipsFromBoschToDrive(clipReadyToBeUploadToDrive, videosOnDrive);
     this.uploadingAllClipsFromCameraToBosch(clipNeededToBeUploadToBoschEvents, videosOnDrive, uploadingToBosch);
     await this.waitingForPromiseToBeDone(uploadingToBosch, uploadingToDrive);
     setTimeout(() => this.mainLoop());
+  }
+  private async uploadingAllReadyClipsFromBoschToDrive(clipReadyToBeUploadToDrive: CameraEvent[], videosOnDrive: Set<string>) {
+    let success = 0;
+    let failure = 0;
+    for (let event of clipReadyToBeUploadToDrive) {
+      await this.downloadingLocallyClipFromBosch(event.id)
+        .then(() => this.uploadingLocalClipToDrive(event, videosOnDrive))
+        .then(() => ++success)
+        .catch(() => ++failure);
+    }
+    return {
+      success,
+      failure
+    };
   }
 
   private async uploadingAllClipsFromCameraToBosch(clipNeededToBeUploadToBoschEvents: CameraEvent[], videosOnDrive: Set<string>, status: IEventPromiseStatus): Promise<boolean> {
@@ -159,8 +169,8 @@ export class CameraOnDrive {
     return true;
   }
 
-  private async waitingForPromiseToBeDone(uploadingToBosch: IEventPromiseStatus, uploadingToDrive: Promise<boolean>[]) {
-    const uploadingToDriveResult = await Promise.allSettled(uploadingToDrive);
+  private async waitingForPromiseToBeDone(uploadingToBosch: IEventPromiseStatus, uploadingToDrive: Promise<{ success: number; failure: number; }>) {
+    const uploadingToDriveResult = await uploadingToDrive;
     console.info(`Upload to drive of already upload to Bosch clips are done`);
     console.info(`Waiting for not upload to Bosch clips to be process`);
     const checkIfUploadToBoschDone = (resolve: () => void) => {
@@ -176,8 +186,8 @@ export class CameraOnDrive {
           );
         if (promiseByStatus.Pending == 0) {
           console.info(`All the pack is now done`);
-          promiseByStatus.Success += uploadingToDriveResult.filter(x => x.status === 'fulfilled' && x.value).length;
-          promiseByStatus.Fail += uploadingToDriveResult.filter(x => x.status === 'rejected' || x.status === 'fulfilled' && !x.value).length;
+          promiseByStatus.Success += uploadingToDriveResult.success;
+          promiseByStatus.Fail += uploadingToDriveResult.failure;
           console.info(`In total ${promiseByStatus.Success} succeeded`);
           console.info(`In total ${promiseByStatus.Fail} failed`);
           resolve();
