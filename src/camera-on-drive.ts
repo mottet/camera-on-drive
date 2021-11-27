@@ -1,10 +1,6 @@
 import { statSync, unlinkSync } from 'fs';
-import BoschApi, { EventVideoClipUploadStatus, eventsByDescTimestamp, EventType, CameraEvent, eventsByAscTimestamp } from './boach-api';
+import BoschApi, { EventVideoClipUploadStatus, eventsByDescTimestamp, EventType, CameraEvent } from './boach-api';
 import { GoogleDriveApi } from './google-drive-api';
-
-interface IEventPromiseStatus {
-  [eventId: string]: 'Pending' | 'Success' | 'Fail';
-}
 
 export class CameraOnDrive {
   private googleApi = new GoogleDriveApi();
@@ -16,21 +12,43 @@ export class CameraOnDrive {
     await this.boschApi.waitUntilReady()
     console.info('Bosch API ready');
     console.info('Camera On Drive ready to go!');
-    this.mainLoop();
-  }
-
-  private async mainLoop() {
-    console.info(`<===============================>`);
     console.info('Fetching list of all videos\' name on the drive');
     const videosOnDrive = new Set(await this.googleApi.listAllFilesName());
+    this.mainLoop(videosOnDrive);
+  }
+
+  private async mainLoop(videosOnDrive: Set<string>) {
+    console.info(`<===============================>`);
     console.info('Fetching all the events of the camera');
     const eventsWithClipNotYetOnDrive = await this.getEventsWithClipNotYetOnDrive(videosOnDrive);
     if (eventsWithClipNotYetOnDrive.length) {
-      this.copyMissingClipOnDrive(eventsWithClipNotYetOnDrive, videosOnDrive);
+      await this.handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive, videosOnDrive);
     } else {
       console.info('No more clip to get from camera');
-      console.info('Waiting 60 secondes before checking again');
-      setTimeout(() => this.mainLoop(), 60_000);
+      console.info('Waiting 60 secondes before reloading drive\'s name list and checking again');
+      setTimeout(async () => this.mainLoop(new Set(await this.googleApi.listAllFilesName())), 60_000);
+    }
+  }
+
+  private async handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive: CameraEvent[], videosOnDrive: Set<string>) {
+    const clipsReadyToBeUploadToDrive = eventsWithClipNotYetOnDrive.filter(e => e.videoClipUploadStatus === EventVideoClipUploadStatus.Done
+    );
+    const firstClipToUploadToBosch = eventsWithClipNotYetOnDrive.find(e => e.videoClipUploadStatus === EventVideoClipUploadStatus.Local || e.videoClipUploadStatus === EventVideoClipUploadStatus.Pending
+    );
+    if (clipsReadyToBeUploadToDrive.length) {
+      await this.uploadingAllReadyClipsFromBoschToDrive(clipsReadyToBeUploadToDrive, videosOnDrive);
+      setTimeout(() => this.mainLoop(videosOnDrive));
+    } else if (firstClipToUploadToBosch && firstClipToUploadToBosch.videoClipUploadStatus === EventVideoClipUploadStatus.Local) {
+      this.uploadingClipFromCameraToBosch(firstClipToUploadToBosch);
+      setTimeout(() => this.mainLoop(videosOnDrive), 10_000);
+    } else {
+      const numberOfClipsUploadindToBosch = eventsWithClipNotYetOnDrive.filter(e => e.videoClipUploadStatus === EventVideoClipUploadStatus.Pending
+      ).length;
+      const numberOfClipsWaintingOnCamera = eventsWithClipNotYetOnDrive.filter(e => e.videoClipUploadStatus === EventVideoClipUploadStatus.Local
+      ).length;
+      console.info(`${numberOfClipsUploadindToBosch} clips pending and ${numberOfClipsWaintingOnCamera} local`);
+      console.info(`Waiting 10 secondes to check clip status.`);
+      setTimeout(() => this.mainLoop(videosOnDrive), 10_000);
     }
   }
 
@@ -48,61 +66,27 @@ export class CameraOnDrive {
     return eventsWithClipNotYetOnDrive;
   }
 
-  private async copyMissingClipOnDrive(eventsWithClipNotYetOnDrive: CameraEvent[], videosOnDrive: Set<string>) {
-    console.info(`There are ${eventsWithClipNotYetOnDrive.length} clip to download`);
-    const uploadingToBosch: IEventPromiseStatus = {};
-    const clipNeededToBeUploadToBoschEvents: CameraEvent[] = [];
-    const clipReadyToBeUploadToDrive: CameraEvent[] = [];
-    for (let event of eventsWithClipNotYetOnDrive) {
-      if (event.videoClipUploadStatus === EventVideoClipUploadStatus.Local || event.videoClipUploadStatus === EventVideoClipUploadStatus.Pending) {
-        uploadingToBosch[event.id] = 'Pending';
-        clipNeededToBeUploadToBoschEvents.push(event);
-      } else if (event.videoClipUploadStatus === EventVideoClipUploadStatus.Done) {
-        clipReadyToBeUploadToDrive.push(event);
-      }
-    }
-    const uploadingToDrive = this.uploadingAllReadyClipsFromBoschToDrive(clipReadyToBeUploadToDrive, videosOnDrive);
-    this.uploadingAllClipsFromCameraToBosch(clipNeededToBeUploadToBoschEvents, videosOnDrive, uploadingToBosch);
-    await this.waitingForPromiseToBeDone(uploadingToBosch, uploadingToDrive);
-    setTimeout(() => this.mainLoop());
-  }
   private async uploadingAllReadyClipsFromBoschToDrive(clipReadyToBeUploadToDrive: CameraEvent[], videosOnDrive: Set<string>) {
     let success = 0;
     let failure = 0;
+    let index = 0;
     for (let event of clipReadyToBeUploadToDrive) {
+      index++;
+      console.info(`==========${index.toString().padStart(3, '0')}/${clipReadyToBeUploadToDrive.length.toString().padStart(3, '0')}==========`);
       await this.downloadingLocallyClipFromBosch(event)
         .then(() => this.uploadingLocalClipToDrive(event, videosOnDrive))
-        .then(() => ++success)
+        .then(() => {
+          ++success;
+          videosOnDrive.add(`${event.timestamp}.mp4`);
+        })
         .catch(() => ++failure);
     }
-    return {
-      success,
-      failure
-    };
-  }
-
-  private async uploadingAllClipsFromCameraToBosch(clipNeededToBeUploadToBoschEvents: CameraEvent[], videosOnDrive: Set<string>, status: IEventPromiseStatus): Promise<boolean> {
-    const newestToOldestEvent = clipNeededToBeUploadToBoschEvents.sort(eventsByAscTimestamp);
-    /**
-     * Need to go one by one because the camera doesn't handle well too many request of download at the same time.
-     * Starting with the newest to avoid looping in fail when the pool of clip is at its maximum (200):
-     *  1) You try to get the older clip 
-     *  2) The download of the older clip is slower than the arrival of a newer clip.
-     *  3) The older video is delete before being download.
-     *  4) Go to 1)
-     */
-    for (let event of newestToOldestEvent) {
-      await this.uploadingClipFromCameraToBosch(event);
-        // .then(() => this.downloadingLocallyClipFromBosch(event))
-        // .then(() => this.uploadingLocalClipToDrive(event, videosOnDrive))
-        // .then(() => status[event.id] = 'Success')
-        // .catch(() => status[event.id] = 'Fail');
-    }
-    return true;
+    console.info(`===========================`);
+    console.info(`Uploads done with ${success} success and ${failure} failures`);
   }
 
   private uploadingClipFromCameraToBosch(event: CameraEvent): Promise<boolean> {
-    console.info(`Uploading clip ${event.timestamp} from camera to Bosch`);
+    console.info(`Request upload of clip ${event.timestamp} from camera to Bosch`);
     this.boschApi.requestClipEvents(event.id);
     const checkIfDownloadDone = (event: CameraEvent, resolve: (isDownloadDone: boolean) => void, reject: (reason: any) => void) => {
       setTimeout(async () => {
@@ -117,7 +101,7 @@ export class CameraOnDrive {
             break;
           default:
             console.error(`Upload ${event.timestamp} to Bosch failed`);
-            reject(`Upload ${event.timestamp} to Bosch failed`);
+            resolve(false);
             break;
         }
       }, 5_000);
@@ -188,39 +172,6 @@ export class CameraOnDrive {
     return oldestVideo;
   }
 
-  private async waitingForPromiseToBeDone(uploadingToBosch: IEventPromiseStatus, uploadingToDrive: Promise<{ success: number; failure: number; }>) {
-    const uploadingToDriveResult = await uploadingToDrive;
-    console.info(`Upload to drive of already upload to Bosch clips are done`);
-    console.info(`Waiting for not upload to Bosch clips to be process`);
-    const checkIfUploadToBoschDone = (resolve: () => void) => {
-      setTimeout(async () => {
-        const promiseByStatus = Object
-          .values(uploadingToBosch)
-          .reduce(
-            (prev, current) => {
-              prev[current]++;
-              return prev;
-            },
-            { Pending: 0, Success: 0, Fail: 0 }
-          );
-        if (promiseByStatus.Pending == 0) {
-          console.info(`All the pack is now done`);
-          promiseByStatus.Success += uploadingToDriveResult.success;
-          promiseByStatus.Fail += uploadingToDriveResult.failure;
-          console.info(`In total ${promiseByStatus.Success} succeeded`);
-          console.info(`In total ${promiseByStatus.Fail} failed`);
-          resolve();
-        } else {
-          console.info(`Waiting for ${promiseByStatus.Pending} upload to be done`);
-          console.info(`${promiseByStatus.Success} succeeded`);
-          console.info(`${promiseByStatus.Fail} failed`);
-          checkIfUploadToBoschDone(resolve);
-        }
-      }, 5_000);
-    };
-    return new Promise<void>(resolve => checkIfUploadToBoschDone(resolve));
-  }
-
   private async isEnoughSpaceInDriveForFile(filePath: string): Promise<boolean> {
     const stats = statSync(filePath);
     const availableSpace = await this.googleApi.getAvailableSpace() - 10_000_000;
@@ -236,13 +187,13 @@ export class CameraOnDrive {
 
   private humainReadableByteSize(bytes: number): string {
     if (bytes > 1_000_000_000) {
-      return `${(Math.round(bytes / 10_000_000))/100}GB`;
+      return `${(bytes / 1_000_000_000).toFixed(2)}GB`;
     }
     if (bytes > 1_000_000) {
-      return `${(Math.round(bytes / 10_000))/100}MB`;
+      return `${(bytes / 1_000_000).toFixed(2)}MB`;
     }
     if (bytes > 1_000) {
-      return `${(Math.round(bytes / 10))/100}KB`;
+      return `${(bytes / 1_000).toFixed(2)}KB`;
     }
     return `${bytes}B`;
   }
