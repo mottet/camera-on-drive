@@ -71,7 +71,7 @@ export class GoogleDriveApi {
   /**
    * Upload video
    */
-  public async uploadVideo(pathToVideo: string, videoName: string) {
+  public async uploadVideo(pathToVideo: string, videoName: string): Promise<boolean> {
     const fileMetadata = {
       name: `${videoName}.mp4`
     };
@@ -81,36 +81,39 @@ export class GoogleDriveApi {
     };
     const drive = google.drive({ version: 'v3', auth: this.auth });
     try {
-      const file = await drive.files.create({
+      await drive.files.create({
         requestBody: fileMetadata,
-        media,
-        fields: 'id'
+        media
       })
-      console.log('Upload of video ', videoName, ' successful');
-      console.log('File Id: ', file.data.id);
+      console.info(`Upload of video ${videoName} successful`);
+      return true;
     } catch (err) {
       console.error(err);
+      return false;
     }
   }
 
   /**
    * Delete video
+   * Return true if deleted
    */
-  public async deleteVideo(videoName: string) {
+  public async deleteVideo(videoName: string): Promise<boolean> {
     const drive = google.drive({ version: 'v3', auth: this.auth });
     const res = await drive.files.list({
-      fields: 'id',
-      q: `name = ${videoName}.mp4`
+      fields: 'files(id)',
+      q: `name='${videoName}'`
     });
     const video = res.data.files?.[0];
     try {
       await drive.files.delete({
         fileId: video?.id
       });
-      console.log(videoName, ' deleted');
+      console.info(`${videoName} deleted`);
+      return true;
     } catch (err) {
       console.error(err);
     }
+    return false;
   }
 
   //#region Credentials

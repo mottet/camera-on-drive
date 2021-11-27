@@ -51,18 +51,6 @@ export default class BoachApi {
 
   public waitUntilReady = async () => await this.boschConnection.waitUntilReady();
 
-  public async displayEvents() {
-    const eventUrl = `${this.baseUrl}/events`;
-    try {
-      const localVideoEvents = await (await this.createGetRequest<CameraEvent[]>(eventUrl)).filter(e => e.videoClipUploadStatus === EventVideoClipUploadStatus.Local);
-      console.log('Successfully downloaded events!');
-      console.log(`There are ${localVideoEvents.length} events.`);
-      console.log(localVideoEvents)
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
   public async getEvent(eventId: string): Promise<CameraEvent | undefined> {
     return (await this.getEvents()).find(e => e.id === eventId);
   }
@@ -100,7 +88,6 @@ export default class BoachApi {
       const w = videoSteam.pipe(fs.createWriteStream(localFilePath));
       return new Promise(resolve => 
         w.on('finish', () => {
-          console.log('Successfully downloaded file!');
           resolve(true);
         })
       );
