@@ -33,18 +33,27 @@ export class CameraOnDrive {
   private async handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive: CameraEvent[], videosOnDrive: Set<string>) {
     const clipsReadyToBeUploadToDrive = eventsWithClipNotYetOnDrive.filter(e => e.videoClipUploadStatus === EventVideoClipUploadStatus.Done
     );
-    const firstClipToUploadToBosch = eventsWithClipNotYetOnDrive.find(e => e.videoClipUploadStatus === EventVideoClipUploadStatus.Local || e.videoClipUploadStatus === EventVideoClipUploadStatus.Pending
+    const firstClipToUploadToBosch = eventsWithClipNotYetOnDrive.find(e => 
+      e.videoClipUploadStatus === EventVideoClipUploadStatus.Local || 
+      e.videoClipUploadStatus === EventVideoClipUploadStatus.Pending || 
+      e.videoClipUploadStatus === EventVideoClipUploadStatus.Unavailable
     );
     if (clipsReadyToBeUploadToDrive.length) {
       await this.uploadingAllReadyClipsFromBoschToDrive(clipsReadyToBeUploadToDrive, videosOnDrive);
       setTimeout(() => this.mainLoop(videosOnDrive));
-    } else if (firstClipToUploadToBosch && firstClipToUploadToBosch.videoClipUploadStatus === EventVideoClipUploadStatus.Local) {
+    } else if (firstClipToUploadToBosch && (
+        firstClipToUploadToBosch.videoClipUploadStatus === EventVideoClipUploadStatus.Local ||
+        firstClipToUploadToBosch.videoClipUploadStatus === EventVideoClipUploadStatus.Unavailable
+      )) {
       this.uploadingClipFromCameraToBosch(firstClipToUploadToBosch);
       setTimeout(() => this.mainLoop(videosOnDrive), 10_000);
     } else {
-      const numberOfClipsUploadindToBosch = eventsWithClipNotYetOnDrive.filter(e => e.videoClipUploadStatus === EventVideoClipUploadStatus.Pending
+      const numberOfClipsUploadindToBosch = eventsWithClipNotYetOnDrive.filter(e => 
+        e.videoClipUploadStatus === EventVideoClipUploadStatus.Pending
       ).length;
-      const numberOfClipsWaintingOnCamera = eventsWithClipNotYetOnDrive.filter(e => e.videoClipUploadStatus === EventVideoClipUploadStatus.Local
+      const numberOfClipsWaintingOnCamera = eventsWithClipNotYetOnDrive.filter(e => 
+        e.videoClipUploadStatus === EventVideoClipUploadStatus.Local ||
+        e.videoClipUploadStatus === EventVideoClipUploadStatus.Unavailable
       ).length;
       console.info(`${numberOfClipsUploadindToBosch} clips pending and ${numberOfClipsWaintingOnCamera} local`);
       console.info(`Waiting 10 secondes to check clip status.`);
@@ -56,10 +65,9 @@ export class CameraOnDrive {
     const events = await this.boschApi.getEvents();
     const eventsWithClipNotYetOnDrive = events
       .filter(e => e.eventType === EventType.MOVEMENT || e.eventType === EventType.AUDIO_ALARM)
-      .filter(e => [
-        EventVideoClipUploadStatus.Local,
-        EventVideoClipUploadStatus.Pending,
-        EventVideoClipUploadStatus.Done
+      .filter(e => ![
+        EventVideoClipUploadStatus.Permanently_unavailable,
+        EventVideoClipUploadStatus.Unknown
       ].includes(e.videoClipUploadStatus))
       .filter(e => !videosOnDrive.has(`${e.timestamp}.mp4`))
       .sort(eventsByDescTimestamp);
