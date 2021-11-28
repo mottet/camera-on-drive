@@ -97,10 +97,42 @@ export default class BoachApi {
     }
   }
 
+  public async deleteEvent(eventId: string): Promise<void> {
+    const requestEventClipUrl = `${this.baseUrl}/events/${eventId}`;
+    try {
+      await this.createDeleteRequest(requestEventClipUrl);
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  }
+
   private async createGetRequest<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
     try {
       const token = await this.accessToken;
       const reponse = await axios.get<T>(
+        url,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+          httpsAgent: new https.Agent({
+            rejectUnauthorized: false
+          }),
+          ...config
+        }
+      );
+      return reponse.data;
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  }
+
+  private async createDeleteRequest<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    try {
+      const token = await this.accessToken;
+      const reponse = await axios.delete<T>(
         url,
         {
           headers: {
