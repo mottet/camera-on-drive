@@ -152,7 +152,8 @@ export class BoachConnection {
           console.log('Token stored to', this.TOKEN_PATH);
         } catch (err) {
           console.error('Failed to store token to', this.TOKEN_PATH);
-          return console.error(err);
+          console.error(err);
+          return;
         }
         return;
       } else {

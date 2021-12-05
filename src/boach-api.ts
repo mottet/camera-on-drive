@@ -152,10 +152,27 @@ export default class BoachApi {
   }
 }
 
-export function eventsByAscTimestamp(a: CameraEvent, b: CameraEvent): number {
-  return Date.parse(b.timestamp.split('[')[0]) - Date.parse(a.timestamp.split('[')[0]);
+export function getDateFromEventTimestamp(timestamp: string): Date;
+export function getDateFromEventTimestamp(event: CameraEvent): Date;
+export function getDateFromEventTimestamp(value: any): Date {
+  const timestamp: string = value.timestamp || value;
+  return new Date(timestamp.split('[')[0].replace(/ /g, ':'))
 }
 
-export function eventsByDescTimestamp(a: CameraEvent, b: CameraEvent): number {
-  return Date.parse(a.timestamp.split('[')[0]) - Date.parse(b.timestamp.split('[')[0]);
+export function getTimestampFromEventTimestamp(timestamp: string): number;
+export function getTimestampFromEventTimestamp(event: CameraEvent): number;
+export function getTimestampFromEventTimestamp(value: any): number {
+  return getDateFromEventTimestamp(value).getTime();
+}
+
+export function eventsByAscTimestamp(a: string, b: string): number
+export function eventsByAscTimestamp(a: CameraEvent, b: CameraEvent): number
+export function eventsByAscTimestamp(a: any, b: any): number {
+  return getTimestampFromEventTimestamp(a) - getTimestampFromEventTimestamp(b);
+}
+
+export function eventsByDescTimestamp(a: string, b: string): number
+export function eventsByDescTimestamp(a: CameraEvent, b: CameraEvent): number
+export function eventsByDescTimestamp(a: any, b: any): number {
+  return getTimestampFromEventTimestamp(b) - getTimestampFromEventTimestamp(a);
 }

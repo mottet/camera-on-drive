@@ -1,5 +1,6 @@
 import { statSync, unlinkSync } from 'fs';
-import BoschApi, { EventVideoClipUploadStatus, eventsByDescTimestamp, EventType, CameraEvent } from './boach-api';
+import fs from 'fs/promises';
+import BoschApi, { EventVideoClipUploadStatus, eventsByAscTimestamp, EventType, CameraEvent, getDateFromEventTimestamp } from './boach-api';
 import { GoogleDriveApi } from './google-drive-api';
 
 export class CameraOnDrive {
@@ -20,6 +21,7 @@ export class CameraOnDrive {
   private async mainLoop(videosOnDrive: Set<string>) {
     console.info(`<===============================>`);
     console.info('Fetching all the events of the camera');
+    await this.recordInFileAllEventsEncounted();
     const eventsWithClipNotYetOnDrive = await this.getEventsWithClipNotYetOnDrive(videosOnDrive);
     if (eventsWithClipNotYetOnDrive.length) {
       await this.handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive, videosOnDrive);
@@ -78,7 +80,7 @@ export class CameraOnDrive {
         EventVideoClipUploadStatus.Unknown
       ].includes(e.videoClipUploadStatus))
       .filter(e => !videosOnDrive.has(`${e.timestamp}.mp4`))
-      .sort(eventsByDescTimestamp);
+      .sort(eventsByAscTimestamp);
     return eventsWithClipNotYetOnDrive;
   }
 
@@ -179,8 +181,8 @@ export class CameraOnDrive {
         oldestVideo = video;
         return;
       }
-      const oldestVideoDate = Date.parse(oldestVideo.split('[')[0].replace(/ /g, ':'));
-      const videoDate = Date.parse(video.split('[')[0].replace(/ /g, ':'));
+      const oldestVideoDate = getDateFromEventTimestamp(oldestVideo);
+      const videoDate = getDateFromEventTimestamp(video);
       if (oldestVideoDate > videoDate) {
         oldestVideo = video;
       }
@@ -220,6 +222,22 @@ export class CameraOnDrive {
       console.info(`File ${filePath} is deleted.`);
     } catch (error) {
       console.error(`Deletion of file ${filePath} failed`, error);
+    }
+  }
+
+  private bootTimestamp = new Date().toISOString();
+  private allEventsEncounted = new Set<string>();
+  private async recordInFileAllEventsEncounted() {
+    const currentEvents = await this.boschApi.getEvents();
+    currentEvents.forEach(event => {
+      this.allEventsEncounted.add(event.timestamp);
+    })
+    const eventsFromOlderToYounger = [...this.allEventsEncounted].sort(eventsByAscTimestamp);
+    try {
+      await fs.writeFile(this.bootTimestamp, eventsFromOlderToYounger.join('\n'));
+    } catch (err) {
+      console.error('Failed to store encounted events in file ', this.bootTimestamp);
+      console.error(err);
     }
   }
 }

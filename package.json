@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "scripts": {
     "start": "ts-node ./src/index.ts",
+    "audit": "ts-node ./src/audit.ts",
     "build": "tsc"
   },
   "author": "Marvin Mottet",
