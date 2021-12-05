@@ -10,29 +10,28 @@ export class CameraOnDrive {
   public async start() {
     await this.googleApi.waitUntilReady();
     console.info('Google drive API ready');
-    await this.boschApi.waitUntilReady()
+    await this.boschApi.waitUntilReady();
     console.info('Bosch API ready');
     console.info('Camera On Drive ready to go!');
     console.info('Fetching list of all videos\' name on the drive');
     const videosOnDrive = new Set(await this.googleApi.listAllFilesName());
+    console.info('Start the main loop');
     this.mainLoop(videosOnDrive);
   }
 
   private async mainLoop(videosOnDrive: Set<string>) {
-    console.info(`<===============================>`);
-    console.info('Fetching all the events of the camera');
     await this.recordInFileAllEventsEncounted();
     const eventsWithClipNotYetOnDrive = await this.getEventsWithClipNotYetOnDrive(videosOnDrive);
     if (eventsWithClipNotYetOnDrive.length) {
       await this.handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive, videosOnDrive);
     } else {
-      console.info('No more clip to get from camera');
-      console.info('Waiting 60 secondes before reloading drive\'s name list and checking again');
-      setTimeout(async () => this.mainLoop(new Set(await this.googleApi.listAllFilesName())), 60_000);
+      setTimeout(async () => this.mainLoop(new Set(await this.googleApi.listAllFilesName())), 30_000);
     }
   }
 
   private async handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive: CameraEvent[], videosOnDrive: Set<string>) {
+    console.info(`<===============================>`);
+    console.info(`Clip to handle detected`);
     const { clipsReadyToBeUploadToDrive, clipsToBeRequest, clipsPending } = this.splitCameraEventByClipStatus(eventsWithClipNotYetOnDrive);
     if (clipsReadyToBeUploadToDrive.length) {
       await this.uploadingAllReadyClipsFromBoschToDrive(clipsReadyToBeUploadToDrive, videosOnDrive);
@@ -43,7 +42,6 @@ export class CameraOnDrive {
       setTimeout(() => this.mainLoop(videosOnDrive), 10_000);
     } else {
       console.info(`${clipsPending.length} clips pending and ${clipsToBeRequest.length} local`);
-      console.info(`Waiting 10 secondes to check clip status.`);
       setTimeout(() => this.mainLoop(videosOnDrive), 10_000);
     }
   }
@@ -92,10 +90,12 @@ export class CameraOnDrive {
       index++;
       console.info(`==========${index.toString().padStart(3, '0')}/${clipReadyToBeUploadToDrive.length.toString().padStart(3, '0')}==========`);
       await this.downloadingLocallyClipFromBosch(event)
-        .then(() => this.uploadingLocalClipToDrive(event, videosOnDrive))
-        .then(() => {
+        .then(async () => await this.uploadingLocalClipToDrive(event, videosOnDrive))
+        .then(async () => {
           ++success;
           videosOnDrive.add(`${event.timestamp}.mp4`);
+          await this.boschApi.deleteEvent(event.id);
+          console.info(`Event of clip ${event.timestamp} delete on Bosch cloud`)
         })
         .catch(() => ++failure);
     }

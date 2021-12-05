@@ -97,6 +97,20 @@ export default class BoachApi {
     }
   }
 
+  public async setEventFavoriteStatus(id: string, isFavorite: boolean): Promise<void> {
+    const requestEventsClipUrl = `${this.baseUrl}/events`;
+    const body = {
+      id,
+      isFavorite
+    }
+    try {
+      await this.createPutRequest(requestEventsClipUrl, body);
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  }
+
   public async deleteEvent(eventId: string): Promise<void> {
     const requestEventClipUrl = `${this.baseUrl}/events/${eventId}`;
     try {
@@ -112,6 +126,29 @@ export default class BoachApi {
       const token = await this.accessToken;
       const reponse = await axios.get<T>(
         url,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+          httpsAgent: new https.Agent({
+            rejectUnauthorized: false
+          }),
+          ...config
+        }
+      );
+      return reponse.data;
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
+  }
+
+  private async createPutRequest<T>(url: string, body: { [properties: string]: any }, config?: AxiosRequestConfig): Promise<T> {
+    try {
+      const token = await this.accessToken;
+      const reponse = await axios.put<T>(
+        url,
+        body,
         {
           headers: {
             Authorization: `Bearer ${token}`
