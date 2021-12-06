@@ -173,11 +173,11 @@ export class BoachConnection {
   }
 
   private generateRandomCode(): string {
-    return this.generateRandomString(128, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+    return this.generateRandomString(128, 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~');
   }
 
   private generateRandomString(size: number, authorizedCharacters: string): string {
-    let randomString = "";
+    let randomString = '';
     for (let i = 0; i < size; i++) {
       randomString += authorizedCharacters[randomInt(authorizedCharacters.length - 1)];
     }
@@ -191,7 +191,16 @@ export class BoachConnection {
     return challenge;
   }
 
-  private getLoginPath = (codeChallenge: string, state: string) => "https://identity.bosch.com/connect/authorize?redirect_uri=https://www.bosch.com/boschcam&response_type=code&client_id=ciamids_047541CF-131C-4C7E-8F6B-659AA236A129&scope=email+offline_access+profile+openid&state=" + state + "&RedirectToIdentityProvider=AD%2BAUTHORITY&code_challenge_method=S256&code_challenge=" + codeChallenge;
+  private getLoginPath = (codeChallenge: string, state: string) =>
+    'https://identity.bosch.com/connect/authorize?' +
+    'redirect_uri=https://www.bosch.com/boschcam&' +
+    'response_type=code&'+ 
+    'client_id=ciamids_047541CF-131C-4C7E-8F6B-659AA236A129&' +
+    'scope=email+offline_access+profile+openid&'+
+    `state=${state}&` +
+    'RedirectToIdentityProvider=AD%2BAUTHORITY&' +
+    'code_challenge_method=S256&' +
+    `code_challenge=${codeChallenge}`;
 
   private generateOAuth2InfoForBosch(): IOAuth2ConnectionPageInfo {
     const oAuth2Code = this.getOAuth2Code();
@@ -209,7 +218,7 @@ export class BoachConnection {
 
   private async getBoschOAuthToken(info: IOAuth2ConnectionPageInfo): Promise<OAuth2Tokens | undefined> {
     const credentials = await this.getBoschIdCredentials();
-    const browser = await puppeteer.launch({args: ['--no-sandbox', '--disable-setuid-sandbox']});
+    const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     const page = await browser.newPage();
     console.info('Open Bosch connect page');
     await page.goto(info.requestConnectionUrl, {
@@ -230,7 +239,7 @@ export class BoachConnection {
     }
     console.info('Connection done, retrieve of code in url');
     const code = await page.evaluate(() => {
-      const params = new URLSearchParams(window.location.search);;
+      const params = new URLSearchParams(window.location.search);
       return params.get('code');
     });
     await browser.close();
@@ -273,7 +282,7 @@ export class BoachConnection {
         );
       return res.data as OAuth2Tokens;
     } catch (error: any) {
-      console.error("Failed to get token from Bosch");
+      console.error('Failed to get token from Bosch');
       console.error(error.response.status);
       console.error(error.response.data);
       return;

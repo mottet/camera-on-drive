@@ -30,8 +30,8 @@ export class CameraOnDrive {
   }
 
   private async handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive: CameraEvent[], videosOnDrive: Set<string>) {
-    console.info(`<===============================>`);
-    console.info(`Clip to handle detected`);
+    console.info('<===============================>');
+    console.info('Clip to handle detected');
     const { clipsReadyToBeUploadToDrive, clipsToBeRequest, clipsPending } = this.splitCameraEventByClipStatus(eventsWithClipNotYetOnDrive);
     if (clipsReadyToBeUploadToDrive.length) {
       await this.uploadingAllReadyClipsFromBoschToDrive(clipsReadyToBeUploadToDrive, videosOnDrive);
@@ -65,7 +65,7 @@ export class CameraOnDrive {
         default:
           break;
       }
-    })
+    });
     return { clipsReadyToBeUploadToDrive, clipsToBeRequest, clipsPending };
   }
 
@@ -86,7 +86,7 @@ export class CameraOnDrive {
     let success = 0;
     let failure = 0;
     let index = 0;
-    for (let event of clipReadyToBeUploadToDrive) {
+    for (const event of clipReadyToBeUploadToDrive) {
       index++;
       console.info(`==========${index.toString().padStart(3, '0')}/${clipReadyToBeUploadToDrive.length.toString().padStart(3, '0')}==========`);
       await this.downloadingLocallyClipFromBosch(event)
@@ -95,18 +95,18 @@ export class CameraOnDrive {
           ++success;
           videosOnDrive.add(`${event.timestamp}.mp4`);
           await this.boschApi.deleteEvent(event.id);
-          console.info(`Event of clip ${event.timestamp} delete on Bosch cloud`)
+          console.info(`Event of clip ${event.timestamp} delete on Bosch cloud`);
         })
         .catch(() => ++failure);
     }
-    console.info(`===========================`);
+    console.info('===========================');
     console.info(`Uploads done with ${success} success and ${failure} failures`);
   }
 
   private uploadingClipFromCameraToBosch(event: CameraEvent): Promise<boolean> {
     console.info(`Request upload of clip ${event.timestamp} from camera to Bosch`);
     this.boschApi.requestClipEvents(event.id);
-    const checkIfDownloadDone = (event: CameraEvent, resolve: (isDownloadDone: boolean) => void, reject: (reason: any) => void) => {
+    const checkIfDownloadDone = (event: CameraEvent, resolve: (isDownloadDone: boolean) => void) => {
       setTimeout(async () => {
         const eventStatus = await this.boschApi.getEventStatus(event.id);
         switch (eventStatus) {
@@ -115,7 +115,7 @@ export class CameraOnDrive {
             resolve(true);
             break;
           case EventVideoClipUploadStatus.Pending:
-            checkIfDownloadDone(event, resolve, reject);
+            checkIfDownloadDone(event, resolve);
             break;
           default:
             console.error(`Upload ${event.timestamp} to Bosch failed`);
@@ -123,8 +123,8 @@ export class CameraOnDrive {
             break;
         }
       }, 5_000);
-    }
-    return new Promise((resolve, reject) => checkIfDownloadDone(event, resolve, reject))
+    };
+    return new Promise((resolve) => checkIfDownloadDone(event, resolve));
   }
 
   private async downloadingLocallyClipFromBosch(event: CameraEvent): Promise<boolean> {
@@ -163,7 +163,7 @@ export class CameraOnDrive {
   private async ensureThatTheDriveHasEnoughSpace(event: CameraEvent, videosOnDrive: Set<string>) {
     while (!(await this.isEnoughSpaceInDriveForFile(`${event.id}.mp4`))) {
       console.info('There is not enough space on the drive. Need to delete the oldest video');
-      let oldestVideo = this.getOldestVideoName(videosOnDrive);
+      const oldestVideo = this.getOldestVideoName(videosOnDrive);
       if (oldestVideo) {
         console.info(`Deleting ${oldestVideo} from drive`);
         const isVideoDeleted = await this.googleApi.deleteVideo(oldestVideo);
@@ -231,7 +231,7 @@ export class CameraOnDrive {
     const currentEvents = await this.boschApi.getEvents();
     currentEvents.forEach(event => {
       this.allEventsEncounted.add(event.timestamp);
-    })
+    });
     const eventsFromOlderToYounger = [...this.allEventsEncounted].sort(eventsByAscTimestamp);
     try {
       await fs.writeFile(this.bootTimestamp, eventsFromOlderToYounger.join('\n'));

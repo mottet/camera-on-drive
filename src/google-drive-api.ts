@@ -5,6 +5,18 @@ import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { BehaviorSubject, filter, first, firstValueFrom } from 'rxjs';
 
+interface ICredentials {
+  installed: {
+    client_id: string;
+    project_id: string;
+    auth_uri: string;
+    token_uri: string;
+    auth_provider_x509_cert_url: string;
+    client_secret: string;
+    redirect_uris: string[];
+  }
+}
+
 export class GoogleDriveApi {
   // If modifying these scopes, delete google-token.json.
   private SCOPES = ['https://www.googleapis.com/auth/drive'];
@@ -28,7 +40,7 @@ export class GoogleDriveApi {
   public async listAllFilesName(): Promise<string[]> {
     const drive = google.drive({ version: 'v3', auth: this.auth });
     try {
-      let atTheEndOfTheList = false
+      let atTheEndOfTheList = false;
       let nextPageToken: string | undefined;
       const filesName: string[] = [];
       while (!atTheEndOfTheList) {
@@ -84,7 +96,7 @@ export class GoogleDriveApi {
       await drive.files.create({
         requestBody: fileMetadata,
         media
-      })
+      });
       console.info(`Upload of video ${videoName} successful`);
       return true;
     } catch (err) {
@@ -132,7 +144,7 @@ export class GoogleDriveApi {
    * given callback function.
    * @param {Object} credentials The authorization client credentials.
    */
-  private async authorize(credentials: any) {
+  private async authorize(credentials: ICredentials) {
     const { client_secret, client_id, redirect_uris } = credentials.installed;
     this.auth = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
 
@@ -143,7 +155,7 @@ export class GoogleDriveApi {
       this.isReadySubject.next(true);
     } catch (err) {
       return this.getAccessToken();
-    };
+    }
   }
 
   /**

@@ -102,7 +102,7 @@ export default class BoachApi {
     const body = {
       id,
       isFavorite
-    }
+    };
     try {
       await this.createPutRequest(requestEventsClipUrl, body);
     } catch (error) {
@@ -143,7 +143,7 @@ export default class BoachApi {
     }
   }
 
-  private async createPutRequest<T>(url: string, body: { [properties: string]: any }, config?: AxiosRequestConfig): Promise<T> {
+  private async createPutRequest<T>(url: string, body: { [properties: string]: unknown }, config?: AxiosRequestConfig): Promise<T> {
     try {
       const token = await this.accessToken;
       const reponse = await axios.put<T>(
@@ -191,25 +191,29 @@ export default class BoachApi {
 
 export function getDateFromEventTimestamp(timestamp: string): Date;
 export function getDateFromEventTimestamp(event: CameraEvent): Date;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getDateFromEventTimestamp(value: any): Date {
   const timestamp: string = value.timestamp || value;
-  return new Date(timestamp.split('[')[0].replace(/ /g, ':'))
+  return new Date(timestamp.split('[')[0].replace(/ /g, ':'));
 }
 
 export function getTimestampFromEventTimestamp(timestamp: string): number;
 export function getTimestampFromEventTimestamp(event: CameraEvent): number;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getTimestampFromEventTimestamp(value: any): number {
   return getDateFromEventTimestamp(value).getTime();
 }
 
 export function eventsByAscTimestamp(a: string, b: string): number
 export function eventsByAscTimestamp(a: CameraEvent, b: CameraEvent): number
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function eventsByAscTimestamp(a: any, b: any): number {
   return getTimestampFromEventTimestamp(a) - getTimestampFromEventTimestamp(b);
 }
 
 export function eventsByDescTimestamp(a: string, b: string): number
 export function eventsByDescTimestamp(a: CameraEvent, b: CameraEvent): number
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function eventsByDescTimestamp(a: any, b: any): number {
   return getTimestampFromEventTimestamp(b) - getTimestampFromEventTimestamp(a);
 }
