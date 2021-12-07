@@ -1,11 +1,14 @@
 import { statSync, unlinkSync } from 'fs';
 import fs from 'fs/promises';
-import BoschApi, { EventVideoClipUploadStatus, eventsByAscTimestamp, EventType, CameraEvent, getDateFromEventTimestamp } from './boach-api';
-import { GoogleDriveApi } from './google-drive-api';
+import { IBoschApi, EventVideoClipUploadStatus, eventsByAscTimestamp, EventType, CameraEvent, getDateFromEventTimestamp } from './bosch-api';
+import { IGoogleDriveApi } from './google-drive-api';
 
 export class CameraOnDrive {
-  private readonly googleApi = new GoogleDriveApi();
-  private readonly boschApi = new BoschApi();
+
+  constructor(
+    private readonly googleApi: IGoogleDriveApi,
+    private readonly boschApi: IBoschApi
+  ) { }
 
   private readonly maxNumberOfFavoriteEvent = 25;
   private readonly maxNumberOfNotFavoriteEvent = 200;
@@ -37,14 +40,14 @@ export class CameraOnDrive {
     console.info('<===============================>');
     console.info('Clip to handle detected');
     const { clipsReadyToBeUploadToDrive, clipsToBeRequest, clipsPending } = this.splitCameraEventByClipStatus(eventsWithClipNotYetOnDrive);
-    if (this.clipsCanBeUpload(clipsReadyToBeUploadToDrive)) {
+    if (this.canClipsBeUpload(clipsReadyToBeUploadToDrive)) {
       await this.uploadingAllReadyClipsFromBoschToDrive(clipsReadyToBeUploadToDrive, videosOnDrive);
       setTimeout(() => this.mainLoop(videosOnDrive));
-    } else if (this.clipsCanBeRequest(clipsToBeRequest, clipsPending)) {
+    } else if (this.canClipsBeRequest(clipsToBeRequest, clipsPending)) {
       const lastClipToUploadToBosch = clipsToBeRequest[clipsToBeRequest.length - 1];
       this.uploadingClipFromCameraToBosch(lastClipToUploadToBosch);
       setTimeout(() => this.mainLoop(videosOnDrive), 10_000);
-    } else if (this.clipShouldBeSetAsFavorite(eventsWithClipNotYetOnDrive)) {
+    } else if (this.shouldClipBeSetAsFavorite(eventsWithClipNotYetOnDrive)) {
       this.setOldestNonFavoriteEventAsFavorite(eventsWithClipNotYetOnDrive);
       setTimeout(() => this.mainLoop(videosOnDrive));
     } else {
@@ -53,12 +56,14 @@ export class CameraOnDrive {
     }
   }
 
-  private readonly clipsCanBeUpload = (clipsReadyToBeUploadToDrive: CameraEvent[]) => clipsReadyToBeUploadToDrive.length > 0;
-  private readonly clipsCanBeRequest = (clipsToBeRequest: CameraEvent[], clipsPending: CameraEvent[]) => clipsToBeRequest.length > 0 && clipsPending.length < this.maxNumberOfManualRequest;
-  private clipShouldBeSetAsFavorite(eventsWithClipNotYetOnDrive: CameraEvent[]): boolean {
+  private readonly canClipsBeUpload = (clipsReadyToBeUploadToDrive: CameraEvent[]) => clipsReadyToBeUploadToDrive.length > 0;
+  private readonly canClipsBeRequest = (clipsToBeRequest: CameraEvent[], clipsPending: CameraEvent[]) => clipsToBeRequest.length > 0 && clipsPending.length < this.maxNumberOfManualRequest;
+  private shouldClipBeSetAsFavorite(eventsWithClipNotYetOnDrive: CameraEvent[]): boolean {
     const numberOfFavoriteEvent = eventsWithClipNotYetOnDrive.filter(e => e.isFavorite).length;
     const numberOfNotFavoriteEvent = eventsWithClipNotYetOnDrive.filter(e => !e.isFavorite).length;
-    return numberOfFavoriteEvent < this.maxNumberOfFavoriteEvent && numberOfNotFavoriteEvent >= this.maxNumberOfNotFavoriteEvent;
+    const shouldIt = numberOfFavoriteEvent < this.maxNumberOfFavoriteEvent && numberOfNotFavoriteEvent >= this.maxNumberOfNotFavoriteEvent;
+    console.info(`Should clip be set as favorite with ${numberOfFavoriteEvent} fav and ${numberOfNotFavoriteEvent} not fav: ${shouldIt ? 'yes' : 'no'}`);
+    return shouldIt;
   }
 
   private splitCameraEventByClipStatus(eventsWithClipNotYetOnDrive: CameraEvent[]) {
@@ -147,6 +152,8 @@ export class CameraOnDrive {
     if (eventToSetAsFavorite) {
       console.info(`Setting ${eventToSetAsFavorite.id} from ${eventToSetAsFavorite.timestamp} as favorite to try to keep it longer`);
       this.boschApi.setEventFavoriteStatus(eventToSetAsFavorite?.id, true);
+    } else {
+      console.info('Cannot find an event that is not yet a favorite');
     }
   }
 

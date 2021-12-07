@@ -1,4 +1,4 @@
-import { getDateFromEventTimestamp } from './boach-api';
+import { getDateFromEventTimestamp } from './bosch-api';
 import { GoogleDriveApi } from './google-drive-api';
 
 (async () => {

@@ -1,4 +1,10 @@
+import BoschApi from './bosch-api';
 import { CameraOnDrive } from './camera-on-drive';
+import { GoogleDriveApi } from './google-drive-api';
 
-const cameraOnDrive = new CameraOnDrive();
+const googleApi = new GoogleDriveApi();
+const boschApi = new BoschApi();
+
+const cameraOnDrive = new CameraOnDrive(googleApi, boschApi);
+
 cameraOnDrive.start();

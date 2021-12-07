@@ -1,7 +1,7 @@
 import { createReadStream } from 'fs';
 import fs from 'fs/promises';
 import readline from 'readline';
-import { google } from 'googleapis';
+import { drive_v3, google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { BehaviorSubject, filter, first, firstValueFrom } from 'rxjs';
 
@@ -17,7 +17,32 @@ interface ICredentials {
   }
 }
 
-export class GoogleDriveApi {
+export interface IGoogleDriveApi {
+  waitUntilReady: () => Promise<boolean>;
+  /**
+   * Lists the names of all files.
+   */
+  listAllFilesName(): Promise<string[]>;
+  /**
+   * Get drive information
+   */
+  getDriveInfo(): Promise<drive_v3.Schema$About>;
+  /**
+   * Get available space available in bytes
+   */
+  getAvailableSpace(): Promise<number>;
+  /**
+   * Upload video
+   */
+  uploadVideo(pathToVideo: string, videoName: string): Promise<boolean>;
+  /**
+   * Delete video
+   * Return true if deleted
+   */
+  deleteVideo(videoName: string): Promise<boolean>;
+}
+
+export class GoogleDriveApi implements IGoogleDriveApi {
   // If modifying these scopes, delete google-token.json.
   private SCOPES = ['https://www.googleapis.com/auth/drive'];
   // The file token.json stores the user's access and refresh tokens, and is
@@ -63,7 +88,7 @@ export class GoogleDriveApi {
   /**
    * Get drive information
    */
-  public async getDriveInfo() {
+  public async getDriveInfo(): Promise<drive_v3.Schema$About> {
     const drive = google.drive({ version: 'v3', auth: this.auth });
     const about = await drive.about.get({
       fields: 'user,storageQuota'

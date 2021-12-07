@@ -2,7 +2,7 @@ import axios, { AxiosRequestConfig } from 'axios';
 import fs from 'fs';
 import https from 'https';
 import path from 'path';
-import { BoachConnection } from './boach-connection';
+import { BoschConnection } from './bosch-connection';
 
 export enum EventType {
   TROUBLE_CONNECT = 'TROUBLE_CONNECT',
@@ -36,9 +36,21 @@ export interface CameraEvent {
   videoClipUploadProgress?: number // null or 0 or 100
 }
 
-export default class BoachApi {
+export interface IBoschApi {
+  waitUntilReady: () => Promise<boolean>;
+  readonly accessToken: Promise<string>;
+  getEvent(eventId: string): Promise<CameraEvent | undefined>;
+  getEvents(): Promise<CameraEvent[]> ;
+  requestClipEvents(eventId: string): Promise<void>;
+  getEventStatus(eventId: string): Promise<EventVideoClipUploadStatus | undefined>;
+  downloadVideo(videoId: string, downloadFolder: string): Promise<boolean>;
+  setEventFavoriteStatus(id: string, isFavorite: boolean): Promise<void>;
+  deleteEvent(eventId: string): Promise<void>;
+}
 
-  private boschConnection: BoachConnection;
+export default class BoschApi implements IBoschApi {
+
+  private boschConnection: BoschConnection;
   public get accessToken(): Promise<string> {
     return this.boschConnection.getAccessToken();
   }
@@ -46,7 +58,7 @@ export default class BoachApi {
   private baseUrl = 'https://residential.cbs.boschsecurity.com/v7';
 
   public constructor() {
-    this.boschConnection = new BoachConnection();
+    this.boschConnection = new BoschConnection();
   }
 
   public waitUntilReady = async () => await this.boschConnection.waitUntilReady();

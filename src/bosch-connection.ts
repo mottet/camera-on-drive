@@ -69,7 +69,7 @@ class OAuth2Tokens implements IOAuth2Tokens {
   }
 }
 
-export class BoachConnection {
+export class BoschConnection {
 
   private TOKEN_PATH = 'bosch-token.json';
   private CREDENTIALS_PATH = 'bosch-credentials.json';
