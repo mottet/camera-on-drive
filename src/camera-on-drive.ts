@@ -4,8 +4,12 @@ import BoschApi, { EventVideoClipUploadStatus, eventsByAscTimestamp, EventType, 
 import { GoogleDriveApi } from './google-drive-api';
 
 export class CameraOnDrive {
-  private googleApi = new GoogleDriveApi();
-  private boschApi = new BoschApi();
+  private readonly googleApi = new GoogleDriveApi();
+  private readonly boschApi = new BoschApi();
+
+  private readonly maxNumberOfFavoriteEvent = 25;
+  private readonly maxNumberOfNotFavoriteEvent = 200;
+  private readonly maxNumberOfManualRequest = 3;
 
   public async start() {
     await this.googleApi.waitUntilReady();
@@ -33,17 +37,28 @@ export class CameraOnDrive {
     console.info('<===============================>');
     console.info('Clip to handle detected');
     const { clipsReadyToBeUploadToDrive, clipsToBeRequest, clipsPending } = this.splitCameraEventByClipStatus(eventsWithClipNotYetOnDrive);
-    if (clipsReadyToBeUploadToDrive.length) {
+    if (this.clipsCanBeUpload(clipsReadyToBeUploadToDrive)) {
       await this.uploadingAllReadyClipsFromBoschToDrive(clipsReadyToBeUploadToDrive, videosOnDrive);
       setTimeout(() => this.mainLoop(videosOnDrive));
-    } else if (clipsToBeRequest.length > 0 && clipsPending.length < 3) {
+    } else if (this.clipsCanBeRequest(clipsToBeRequest, clipsPending)) {
       const lastClipToUploadToBosch = clipsToBeRequest[clipsToBeRequest.length - 1];
       this.uploadingClipFromCameraToBosch(lastClipToUploadToBosch);
       setTimeout(() => this.mainLoop(videosOnDrive), 10_000);
+    } else if (this.clipShouldBeSetAsFavorite(eventsWithClipNotYetOnDrive)) {
+      this.setOldestNonFavoriteEventAsFavorite(eventsWithClipNotYetOnDrive);
+      setTimeout(() => this.mainLoop(videosOnDrive));
     } else {
       console.info(`${clipsPending.length} clips pending and ${clipsToBeRequest.length} local`);
       setTimeout(() => this.mainLoop(videosOnDrive), 10_000);
     }
+  }
+
+  private readonly clipsCanBeUpload = (clipsReadyToBeUploadToDrive: CameraEvent[]) => clipsReadyToBeUploadToDrive.length > 0;
+  private readonly clipsCanBeRequest = (clipsToBeRequest: CameraEvent[], clipsPending: CameraEvent[]) => clipsToBeRequest.length > 0 && clipsPending.length < this.maxNumberOfManualRequest;
+  private clipShouldBeSetAsFavorite(eventsWithClipNotYetOnDrive: CameraEvent[]): boolean {
+    const numberOfFavoriteEvent = eventsWithClipNotYetOnDrive.filter(e => e.isFavorite).length;
+    const numberOfNotFavoriteEvent = eventsWithClipNotYetOnDrive.filter(e => !e.isFavorite).length;
+    return numberOfFavoriteEvent < this.maxNumberOfFavoriteEvent && numberOfNotFavoriteEvent >= this.maxNumberOfNotFavoriteEvent;
   }
 
   private splitCameraEventByClipStatus(eventsWithClipNotYetOnDrive: CameraEvent[]) {
@@ -127,6 +142,14 @@ export class CameraOnDrive {
     return new Promise((resolve) => checkIfDownloadDone(event, resolve));
   }
 
+  private setOldestNonFavoriteEventAsFavorite(eventsWithClipNotYetOnDrive: CameraEvent[]) {
+    const eventToSetAsFavorite = eventsWithClipNotYetOnDrive.find(e => !e.isFavorite);
+    if (eventToSetAsFavorite) {
+      console.info(`Setting ${eventToSetAsFavorite.id} from ${eventToSetAsFavorite.timestamp} as favorite to try to keep it longer`);
+      this.boschApi.setEventFavoriteStatus(eventToSetAsFavorite?.id, true);
+    }
+  }
+
   private async downloadingLocallyClipFromBosch(event: CameraEvent): Promise<boolean> {
     console.info(`Downloading locally clip of ${event.timestamp}`);
     try {
@@ -203,15 +226,18 @@ export class CameraOnDrive {
     return true;
   }
 
+  private readonly aGigaByte = 1_000_000_000;
+  private readonly aMegaByte = 1_000_000;
+  private readonly aKiloByte = 1_000;
   private humainReadableByteSize(bytes: number): string {
-    if (bytes > 1_000_000_000) {
-      return `${(bytes / 1_000_000_000).toFixed(2)}GB`;
+    if (bytes > this.aGigaByte) {
+      return `${(bytes / this.aGigaByte).toFixed(2)}GB`;
     }
-    if (bytes > 1_000_000) {
-      return `${(bytes / 1_000_000).toFixed(2)}MB`;
+    if (bytes > this.aMegaByte) {
+      return `${(bytes / this.aMegaByte).toFixed(2)}MB`;
     }
-    if (bytes > 1_000) {
-      return `${(bytes / 1_000).toFixed(2)}KB`;
+    if (bytes > this.aKiloByte) {
+      return `${(bytes / this.aKiloByte).toFixed(2)}KB`;
     }
     return `${bytes}B`;
   }
@@ -225,8 +251,8 @@ export class CameraOnDrive {
     }
   }
 
-  private bootTimestamp = new Date().toISOString();
-  private allEventsEncounted = new Set<string>();
+  private readonly bootTimestamp = new Date().toISOString();
+  private readonly allEventsEncounted = new Set<string>();
   private async recordInFileAllEventsEncounted() {
     const currentEvents = await this.boschApi.getEvents();
     currentEvents.forEach(event => {
