@@ -61,9 +61,7 @@ export class CameraOnDrive {
   private shouldClipBeSetAsFavorite(eventsWithClipNotYetOnDrive: CameraEvent[]): boolean {
     const numberOfFavoriteEvent = eventsWithClipNotYetOnDrive.filter(e => e.isFavorite).length;
     const numberOfNotFavoriteEvent = eventsWithClipNotYetOnDrive.filter(e => !e.isFavorite).length;
-    const shouldIt = numberOfFavoriteEvent < this.maxNumberOfFavoriteEvent && numberOfNotFavoriteEvent >= this.maxNumberOfNotFavoriteEvent;
-    console.info(`Should clip be set as favorite with ${numberOfFavoriteEvent} fav and ${numberOfNotFavoriteEvent} not fav: ${shouldIt ? 'yes' : 'no'}`);
-    return shouldIt;
+    return numberOfFavoriteEvent < this.maxNumberOfFavoriteEvent && numberOfNotFavoriteEvent >= this.maxNumberOfNotFavoriteEvent;
   }
 
   private splitCameraEventByClipStatus(eventsWithClipNotYetOnDrive: CameraEvent[]) {
