@@ -1,5 +1,5 @@
-import { getDateFromEventTimestamp } from './bosch-api';
-import { GoogleDriveApi } from './google-drive-api';
+import { getDateFromEventTimestamp } from '../bosch/bosch-api';
+import { GoogleDriveApi } from '../google/google-drive-api';
 
 (async () => {
   const googleApi = new GoogleDriveApi();

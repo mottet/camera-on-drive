@@ -2,7 +2,8 @@ import axios, { AxiosRequestConfig } from 'axios';
 import fs from 'fs';
 import https from 'https';
 import path from 'path';
-import { BoschConnection } from './bosch-connection';
+import stream from 'stream';
+import { IBoschConnection } from './bosch-connection';
 
 export enum EventType {
   TROUBLE_CONNECT = 'TROUBLE_CONNECT',
@@ -49,16 +50,14 @@ export interface IBoschApi {
 }
 
 export default class BoschApi implements IBoschApi {
-
-  private boschConnection: BoschConnection;
+  
   public get accessToken(): Promise<string> {
     return this.boschConnection.getAccessToken();
   }
 
   private baseUrl = 'https://residential.cbs.boschsecurity.com/v7';
 
-  public constructor() {
-    this.boschConnection = new BoschConnection();
+  public constructor(private boschConnection: IBoschConnection) {
   }
 
   public waitUntilReady = async () => await this.boschConnection.waitUntilReady();
@@ -96,8 +95,8 @@ export default class BoschApi implements IBoschApi {
     const videoUrl = `${this.baseUrl}/events/${videoId}/clip.mp4`;
     const localFilePath = path.resolve(downloadFolder, `${videoId}.mp4`);
     try {
-      const videoSteam = await this.createGetRequest<any>(videoUrl, { responseType: 'stream' });
-      const w = videoSteam.pipe(fs.createWriteStream(localFilePath));
+      const videoStream = await this.createGetRequest<stream.Readable>(videoUrl, { responseType: 'stream' });
+      const w = videoStream.pipe(fs.createWriteStream(localFilePath));
       return new Promise(resolve => 
         w.on('finish', () => {
           resolve(true);

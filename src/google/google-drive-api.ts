@@ -19,33 +19,17 @@ interface ICredentials {
 
 export interface IGoogleDriveApi {
   waitUntilReady: () => Promise<boolean>;
-  /**
-   * Lists the names of all files.
-   */
   listAllFilesName(): Promise<string[]>;
-  /**
-   * Get drive information
-   */
   getDriveInfo(): Promise<drive_v3.Schema$About>;
-  /**
-   * Get available space available in bytes
-   */
-  getAvailableSpace(): Promise<number>;
-  /**
-   * Upload video
-   */
+  getAvailableSpaceInBytes(): Promise<number>;
   uploadVideo(pathToVideo: string, videoName: string): Promise<boolean>;
-  /**
-   * Delete video
-   * Return true if deleted
-   */
-  deleteVideo(videoName: string): Promise<boolean>;
+  deleteFile(videoName: string): Promise<boolean>;
 }
 
 export class GoogleDriveApi implements IGoogleDriveApi {
   // If modifying these scopes, delete google-token.json.
   private SCOPES = ['https://www.googleapis.com/auth/drive'];
-  // The file token.json stores the user's access and refresh tokens, and is
+  // The file google-token.json stores the user's access and refresh tokens, and is
   // created automatically when the authorization flow completes for the first
   // time.
   private TOKEN_PATH = 'google-token.json';
@@ -56,12 +40,9 @@ export class GoogleDriveApi implements IGoogleDriveApi {
   public waitUntilReady = async () => await firstValueFrom(this.isReadySubject.pipe(filter(x => x), first()));
 
   constructor() {
-    this.requestGoogleDriveApi();
+    this.loadClientSecretsFromLocalFile();
   }
 
-  /**
-   * Lists the names of all files.
-   */
   public async listAllFilesName(): Promise<string[]> {
     const drive = google.drive({ version: 'v3', auth: this.auth });
     try {
@@ -75,7 +56,7 @@ export class GoogleDriveApi implements IGoogleDriveApi {
           pageToken: nextPageToken
         });
         res.data.files?.filter(file => file.name).forEach(file => filesName.push(file.name as string));
-        nextPageToken = res.data.nextPageToken;
+        nextPageToken = res.data.nextPageToken || undefined;
         atTheEndOfTheList = !nextPageToken;
       }
       return filesName;
@@ -85,9 +66,6 @@ export class GoogleDriveApi implements IGoogleDriveApi {
     }
   }
 
-  /**
-   * Get drive information
-   */
   public async getDriveInfo(): Promise<drive_v3.Schema$About> {
     const drive = google.drive({ version: 'v3', auth: this.auth });
     const about = await drive.about.get({
@@ -96,18 +74,12 @@ export class GoogleDriveApi implements IGoogleDriveApi {
     return about.data;
   }
 
-  /**
-   * Get available space available in bytes
-   */
-  public async getAvailableSpace(): Promise<number> {
+  public async getAvailableSpaceInBytes(): Promise<number> {
     const { storageQuota } = await this.getDriveInfo();
     const availableSpace = +(storageQuota?.limit || 0) - +(storageQuota?.usage || 0);
     return availableSpace;
   }
 
-  /**
-   * Upload video
-   */
   public async uploadVideo(pathToVideo: string, videoName: string): Promise<boolean> {
     const fileMetadata = {
       name: `${videoName}.mp4`
@@ -130,22 +102,18 @@ export class GoogleDriveApi implements IGoogleDriveApi {
     }
   }
 
-  /**
-   * Delete video
-   * Return true if deleted
-   */
-  public async deleteVideo(videoName: string): Promise<boolean> {
+  public async deleteFile(fileName: string): Promise<boolean> {
     const drive = google.drive({ version: 'v3', auth: this.auth });
     const res = await drive.files.list({
       fields: 'files(id)',
-      q: `name='${videoName}'`
+      q: `name='${fileName}'`
     });
-    const video = res.data.files?.[0];
+    const file = res.data.files?.[0];
     try {
       await drive.files.delete({
-        fileId: video?.id
+        fileId: file?.id || undefined
       });
-      console.info(`${videoName} deleted`);
+      console.info(`${fileName} deleted`);
       return true;
     } catch (err) {
       console.error(err);
@@ -153,40 +121,36 @@ export class GoogleDriveApi implements IGoogleDriveApi {
     return false;
   }
 
-  //#region Credentials
-  // Load client secrets from a local file.
-  private async requestGoogleDriveApi() {
+  private async loadClientSecretsFromLocalFile() {
     try {
       const content = await fs.readFile('google-credentials.json');
-      // Authorize a client with credentials, then call the Google Drive API.
-      this.authorize(JSON.parse(content.toString()));
+      this.initializeAuthorizationObject(JSON.parse(content.toString()));
     } catch (err) {
       return console.log('Error loading client secret file:', err);
     }
   }
-  /**
-   * Create an OAuth2 client with the given credentials, and then execute the
-   * given callback function.
-   * @param {Object} credentials The authorization client credentials.
-   */
-  private async authorize(credentials: ICredentials) {
-    const { client_secret, client_id, redirect_uris } = credentials.installed;
-    this.auth = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
 
-    // Check if we have previously stored a token.
+  private async initializeAuthorizationObject(credentials: ICredentials) {
+    this.createAuthorizationObject(credentials);
     try {
-      const token = await fs.readFile(this.TOKEN_PATH);
-      this.auth.setCredentials(JSON.parse(token.toString()));
-      this.isReadySubject.next(true);
+      await this.setAccessTokenIfAvailaibleInLocalFile();
     } catch (err) {
-      return this.getAccessToken();
+      return this.generateNewAccessToken();
     }
   }
 
-  /**
-   * Get and store new token after prompting for user authorization.
-   */
-  private async getAccessToken() {
+  private async setAccessTokenIfAvailaibleInLocalFile() {
+    const token = await fs.readFile(this.TOKEN_PATH);
+    this.auth.setCredentials(JSON.parse(token.toString()));
+    this.isReadySubject.next(true);
+  }
+
+  private createAuthorizationObject(credentials: ICredentials) {
+    const { client_secret, client_id, redirect_uris } = credentials.installed;
+    this.auth = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
+  }
+
+  private async generateNewAccessToken() {
     const authUrl = this.auth.generateAuthUrl({
       access_type: 'offline',
       scope: this.SCOPES,
@@ -214,5 +178,4 @@ export class GoogleDriveApi implements IGoogleDriveApi {
       }
     });
   }
-  //#endregion Credentials
 }

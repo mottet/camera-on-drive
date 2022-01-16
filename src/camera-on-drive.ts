@@ -1,7 +1,7 @@
 import { statSync, unlinkSync } from 'fs';
 import fs from 'fs/promises';
-import { IBoschApi, EventVideoClipUploadStatus, eventsByAscTimestamp, EventType, CameraEvent, getDateFromEventTimestamp } from './bosch-api';
-import { IGoogleDriveApi } from './google-drive-api';
+import { IBoschApi, EventVideoClipUploadStatus, eventsByAscTimestamp, EventType, CameraEvent, getDateFromEventTimestamp } from './bosch/bosch-api';
+import { IGoogleDriveApi } from './google/google-drive-api';
 
 export class CameraOnDrive {
 
@@ -194,7 +194,7 @@ export class CameraOnDrive {
       const oldestVideo = this.getOldestVideoName(videosOnDrive);
       if (oldestVideo) {
         console.info(`Deleting ${oldestVideo} from drive`);
-        const isVideoDeleted = await this.googleApi.deleteVideo(oldestVideo);
+        const isVideoDeleted = await this.googleApi.deleteFile(oldestVideo);
         if (isVideoDeleted) {
           videosOnDrive.delete(oldestVideo);
         }
@@ -220,7 +220,7 @@ export class CameraOnDrive {
 
   private async isEnoughSpaceInDriveForFile(filePath: string): Promise<boolean> {
     const stats = statSync(filePath);
-    const availableSpace = await this.googleApi.getAvailableSpace() - 10_000_000;
+    const availableSpace = await this.googleApi.getAvailableSpaceInBytes() - 10_000_000;
     if (availableSpace < stats.size) {
       const fileSize = this.humainReadableByteSize(stats.size);
       const availableSpaceSize = this.humainReadableByteSize(availableSpace);

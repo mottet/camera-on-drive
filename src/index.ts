@@ -1,9 +1,11 @@
-import BoschApi from './bosch-api';
+import BoschApi from './bosch/bosch-api';
+import { BoschConnection } from './bosch/bosch-connection';
 import { CameraOnDrive } from './camera-on-drive';
-import { GoogleDriveApi } from './google-drive-api';
+import { GoogleDriveApi } from './google/google-drive-api';
 
 const googleApi = new GoogleDriveApi();
-const boschApi = new BoschApi();
+const boschConnection = new BoschConnection();
+const boschApi = new BoschApi(boschConnection);
 
 const cameraOnDrive = new CameraOnDrive(googleApi, boschApi);
 

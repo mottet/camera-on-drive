@@ -51,7 +51,6 @@ class OAuth2Tokens implements IOAuth2Tokens {
   refresh_token: string;
   token_type: string;
   expires_in: number;
-
   expires_at: number;
 
   public constructor(tokens: IOAuth2Tokens) {
@@ -60,8 +59,9 @@ class OAuth2Tokens implements IOAuth2Tokens {
     this.refresh_token = tokens.refresh_token;
     this.token_type = tokens.token_type;
     this.expires_in = tokens.expires_in;
-    // one minute before real expiration
-    this.expires_at = Date.now() + (this.expires_in * 1000) - 60_000;
+    const espires_time_in_millisecond = Date.now() + this.expires_in * 1000;
+    const a_minute_in_milliseconds = 60_000;
+    this.expires_at = espires_time_in_millisecond - a_minute_in_milliseconds;
   }
 
   public isValide(): boolean {
@@ -69,7 +69,13 @@ class OAuth2Tokens implements IOAuth2Tokens {
   }
 }
 
-export class BoschConnection {
+export interface IBoschConnection {
+  get tokens(): OAuth2Tokens | undefined;
+  waitUntilReady: () => Promise<boolean>;
+  getAccessToken(): Promise<string>;
+}
+
+export class BoschConnection implements IBoschConnection {
 
   private TOKEN_PATH = 'bosch-token.json';
   private CREDENTIALS_PATH = 'bosch-credentials.json';
@@ -93,7 +99,7 @@ export class BoschConnection {
 
   public constructor() {
     console.info('Start connection to Bosch');
-    this.firstSetUpCredentials();
+    this.setUpCredentials();
   }
 
   public waitUntilReady = async () => await firstValueFrom(this.isReadySubject.pipe(filter(x => x), first()));
@@ -109,7 +115,7 @@ export class BoschConnection {
     throw 'No token are available';
   }
 
-  private async firstSetUpCredentials() {
+  private async setUpCredentials() {
     try {
       const token = await fs.readFile(this.TOKEN_PATH);
       this.tokens = JSON.parse(token.toString()) as OAuth2Tokens;
@@ -191,12 +197,12 @@ export class BoschConnection {
     return challenge;
   }
 
-  private getLoginPath = (codeChallenge: string, state: string) =>
+  private getLoginUrl = (codeChallenge: string, state: string) =>
     'https://identity.bosch.com/connect/authorize?' +
     'redirect_uri=https://www.bosch.com/boschcam&' +
-    'response_type=code&'+ 
+    'response_type=code&' +
     'client_id=ciamids_047541CF-131C-4C7E-8F6B-659AA236A129&' +
-    'scope=email+offline_access+profile+openid&'+
+    'scope=email+offline_access+profile+openid&' +
     `state=${state}&` +
     'RedirectToIdentityProvider=AD%2BAUTHORITY&' +
     'code_challenge_method=S256&' +
@@ -205,7 +211,7 @@ export class BoschConnection {
   private generateOAuth2InfoForBosch(): IOAuth2ConnectionPageInfo {
     const oAuth2Code = this.getOAuth2Code();
     const randomState = this.generateRandomCode();
-    const url = this.getLoginPath(oAuth2Code.codeChallenge, randomState);
+    const url = this.getLoginUrl(oAuth2Code.codeChallenge, randomState);
     console.info(`This is the challange code: ${oAuth2Code.codeChallenge}`);
     console.info(`This is the code verifier: ${oAuth2Code.codeVerifier}`);
     console.info(`This is a random state: ${randomState}`);
@@ -281,11 +287,12 @@ export class BoschConnection {
           }
         );
       return res.data as OAuth2Tokens;
-    } catch (error: any) {
-      console.error('Failed to get token from Bosch');
-      console.error(error.response.status);
-      console.error(error.response.data);
-      return;
+    } catch (error: unknown) {
+      if (axios.isAxiosError(error))  {
+        console.error('Failed to get token from Bosch');
+        console.error(error.response?.status);
+        console.error(error.response?.data);
+      }
     }
   }
 }
