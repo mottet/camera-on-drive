@@ -18,16 +18,16 @@
     "@typescript-eslint/eslint-plugin": "^5.5.0",
     "@typescript-eslint/parser": "^5.5.0",
     "eslint": "^8.4.0",
-    "jest": "^27.4.4",
-    "ts-jest": "^27.1.1",
+    "jest": "28.1.0",
+    "ts-jest": "28.0.2",
     "ts-node": "^10.4.0",
     "typescript": "^4.4.4"
   },
   "dependencies": {
-    "axios": "^0.24.0",
+    "axios": "0.27.2",
     "date-fns": "^2.27.0",
-    "googleapis": "^92.0.0",
-    "puppeteer": "^10.4.0",
+    "googleapis": "100.0.0",
+    "puppeteer": "14.0.0",
     "querystring": "^0.2.1",
     "rxjs": "^7.4.0"
   }
