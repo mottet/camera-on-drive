@@ -126,7 +126,12 @@ export class CameraOnDrive {
     this.boschApi.requestClipEvents(event.id);
     const checkIfDownloadDone = (event: CameraEvent, resolve: (isDownloadDone: boolean) => void) => {
       setTimeout(async () => {
-        const eventStatus = await this.boschApi.getEventStatus(event.id);
+        let eventStatus;
+        try {
+          eventStatus = await this.boschApi.getEventStatus(event.id);
+        } catch {
+          eventStatus = EventVideoClipUploadStatus.Unknown;
+        }
         switch (eventStatus) {
           case EventVideoClipUploadStatus.Done:
             console.info(`Upload ${event.timestamp} to Bosch succeeded`);
