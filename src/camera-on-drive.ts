@@ -27,33 +27,46 @@ export class CameraOnDrive {
   }
 
   private async mainLoop(videosOnDrive: Set<string>) {
-    await this.recordInFileAllEventsEncounted();
-    const eventsWithClipNotYetOnDrive = await this.getEventsWithClipNotYetOnDrive(videosOnDrive);
-    if (eventsWithClipNotYetOnDrive.length) {
-      await this.handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive, videosOnDrive);
-    } else {
-      setTimeout(async () => this.mainLoop(new Set(await this.googleApi.listAllFilesName())), 30_000);
+    let millisecondBeforeNextLoop = 0;
+    try {
+      await this.recordInFileAllEventsEncounted();
+      const eventsWithClipNotYetOnDrive = await this.getEventsWithClipNotYetOnDrive(videosOnDrive);
+      if (eventsWithClipNotYetOnDrive.length) {
+        millisecondBeforeNextLoop = await this.handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive, videosOnDrive);
+      } else {
+        millisecondBeforeNextLoop = 30_000;
+        videosOnDrive = new Set(await this.googleApi.listAllFilesName());
+      }
+    }
+    catch(e) {
+      console.error('Restart of the loop forced by error:');
+      console.error(e);
+      millisecondBeforeNextLoop = 30_000;
+    }
+    finally {
+      setTimeout(() => this.mainLoop(videosOnDrive), millisecondBeforeNextLoop);
     }
   }
 
-  private async handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive: CameraEvent[], videosOnDrive: Set<string>) {
+  private async handleClipsNotYetOnDrive(eventsWithClipNotYetOnDrive: CameraEvent[], videosOnDrive: Set<string>): Promise<number> {
     console.info('<===============================>');
     console.info('Clip to handle detected');
     const { clipsReadyToBeUploadToDrive, clipsToBeRequest, clipsPending } = this.splitCameraEventByClipStatus(eventsWithClipNotYetOnDrive);
     if (this.canClipsBeUpload(clipsReadyToBeUploadToDrive)) {
       await this.uploadingAllReadyClipsFromBoschToDrive(clipsReadyToBeUploadToDrive, videosOnDrive);
-      setTimeout(() => this.mainLoop(videosOnDrive));
-    } else if (this.canClipsBeRequest(clipsToBeRequest, clipsPending)) {
+      return 0;
+    }
+    if (this.canClipsBeRequest(clipsToBeRequest, clipsPending)) {
       const lastClipToUploadToBosch = clipsToBeRequest[clipsToBeRequest.length - 1];
       this.uploadingClipFromCameraToBosch(lastClipToUploadToBosch);
-      setTimeout(() => this.mainLoop(videosOnDrive), 10_000);
-    } else if (this.shouldClipBeSetAsFavorite(eventsWithClipNotYetOnDrive)) {
-      this.setOldestNonFavoriteEventAsFavorite(eventsWithClipNotYetOnDrive);
-      setTimeout(() => this.mainLoop(videosOnDrive));
-    } else {
-      console.info(`${clipsPending.length} clips pending and ${clipsToBeRequest.length} local`);
-      setTimeout(() => this.mainLoop(videosOnDrive), 10_000);
+      return 10_000;
     }
+    if (this.shouldClipBeSetAsFavorite(eventsWithClipNotYetOnDrive)) {
+      this.setOldestNonFavoriteEventAsFavorite(eventsWithClipNotYetOnDrive);
+      return 0;
+    }
+    console.info(`${clipsPending.length} clips pending and ${clipsToBeRequest.length} local`);
+    return 10_000;
   }
 
   private readonly canClipsBeUpload = (clipsReadyToBeUploadToDrive: CameraEvent[]) => clipsReadyToBeUploadToDrive.length > 0;
@@ -130,6 +143,7 @@ export class CameraOnDrive {
         try {
           eventStatus = await this.boschApi.getEventStatus(event.id);
         } catch {
+          console.error(`Fail of Bosch event ${event.id} status fetch during its uploading to Bosch.`);
           eventStatus = EventVideoClipUploadStatus.Unknown;
         }
         switch (eventStatus) {
@@ -264,12 +278,12 @@ export class CameraOnDrive {
   private readonly bootTimestamp = new Date().toISOString();
   private readonly allEventsEncounted = new Set<string>();
   private async recordInFileAllEventsEncounted() {
-    const currentEvents = await this.boschApi.getEvents();
-    currentEvents.forEach(event => {
-      this.allEventsEncounted.add(event.timestamp);
-    });
-    const eventsFromOlderToYounger = [...this.allEventsEncounted].sort(eventsByAscTimestamp);
     try {
+      const currentEvents = await this.boschApi.getEvents();
+      currentEvents.forEach(event => {
+        this.allEventsEncounted.add(event.timestamp);
+      });
+      const eventsFromOlderToYounger = [...this.allEventsEncounted].sort(eventsByAscTimestamp);
       await fs.writeFile(this.bootTimestamp, eventsFromOlderToYounger.join('\n'));
     } catch (err) {
       console.error('Failed to store encounted events in file ', this.bootTimestamp);
