@@ -71,6 +71,7 @@ export default class BoschApi implements IBoschApi {
       const eventsUrl = `${this.baseUrl}/events`;
       return await this.createGetRequest<CameraEvent[]>(eventsUrl);
     } catch (error) {
+      console.trace('Problem when requesting events');
       console.error(error);
       throw error;
     }
